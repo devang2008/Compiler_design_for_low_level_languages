@@ -1,0 +1,28 @@
+{
+  "architecture": "WineNet",
+  "layers": [
+    {
+      "name": "fc1",
+      "in": 11,
+      "out": 32,
+      "activation": "relu"
+    },
+    {
+      "name": "fc2",
+      "in": 32,
+      "out": 16,
+      "activation": "relu"
+    },
+    {
+      "name": "fc3",
+      "in": 16,
+      "out": 1,
+      "activation": "sigmoid"
+    }
+  ],
+  "test_accuracy": 88.29,
+  "f1_score": 0.4545,
+  "total_params": 929,
+  "training_seed": 42,
+  "epochs_trained": 49
+}
