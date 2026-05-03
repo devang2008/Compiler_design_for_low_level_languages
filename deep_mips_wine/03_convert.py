@@ -121,7 +121,7 @@ def main():
     
     print(f"Weight extraction validated: max_diff = {max_diff:.6E}")
 
-    # Step 4 — Select 10 test samples for MIPS embedding
+    # Step 4 — Select 10 test samples for MIPS embedding (5 positive, 5 negative predictions)
     data = np.load("outputs/train.npz")
     X_test = data["X_test"]
     y_test = data["y_test"]
@@ -133,22 +133,39 @@ def main():
     stds = scaler["stds"]
 
     test_samples_output = {"samples": []}
+    pos_samples = []
+    neg_samples = []
     
     with torch.no_grad():
-        for i in range(10):
+        for i in range(len(X_test)):
             features_scaled = X_test[i].tolist()
-            features_raw = [features_scaled[j] * stds[j] + means[j] for j in range(11)]
             
+            # Note: WineNet in 03_convert.py STILL has sigmoid in forward (line 27),
+            # which is what we want for probability calculation here.
             out = model(torch.FloatTensor([features_scaled])).item()
             pred = 1 if out >= 0.5 else 0
             
-            test_samples_output["samples"].append({
+            sample_data = {
                 "index": i,
                 "features_scaled": features_scaled,
-                "features_raw": features_raw,
+                "features_raw": [features_scaled[j] * stds[j] + means[j] for j in range(11)],
                 "python_probability": out,
-                "python_prediction": pred
-            })
+                "python_prediction": pred,
+                "true_label": int(y_test[i])
+            }
+            
+            if pred == 1 and len(pos_samples) < 5:
+                pos_samples.append(sample_data)
+            elif pred == 0 and len(neg_samples) < 5:
+                neg_samples.append(sample_data)
+                
+            if len(pos_samples) == 5 and len(neg_samples) == 5:
+                break
+                
+    # Combine and sort
+    selected = sorted(pos_samples + neg_samples, key=lambda x: x["index"])
+    test_samples_output["samples"] = selected
+
 
     with open("outputs/test_samples.json", "w") as f:
         json.dump(test_samples_output, f, indent=2)

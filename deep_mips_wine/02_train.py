@@ -50,21 +50,24 @@ def main():
         def forward(self, x):
             x = self.relu(self.fc1(x))
             x = self.relu(self.fc2(x))
-            x = self.sigmoid(self.fc3(x))
+            x = self.fc3(x) # No sigmoid here for BCEWithLogitsLoss
             return x
 
     torch.manual_seed(42)
     model = WineNet()
 
     total_params = sum(p.numel() for p in model.parameters())
-    print("WineNet: Layer names, shapes, total parameters")
+    print("WineNet Architecture:")
     for name, param in model.named_parameters():
         print(f"  {name}: {list(param.shape)}")
     print(f"Total parameters: {total_params}")
 
     # Step 4 — Define training
-    criterion = nn.BCELoss()
+    # Calculate pos_weight for imbalanced dataset (approx 1175/184 = 6.38)
+    pos_weight = torch.tensor([6.0])
+    criterion = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer, mode='min', factor=0.5, patience=10
     )
@@ -92,7 +95,8 @@ def main():
             optimizer.step()
             
             train_loss += loss.item() * inputs.size(0)
-            preds = (outputs >= 0.5).float()
+            probs = torch.sigmoid(outputs)
+            preds = (probs >= 0.5).float()
             train_correct += (preds == targets).sum().item()
             train_total += inputs.size(0)
             
@@ -109,7 +113,8 @@ def main():
                 outputs = model(inputs)
                 loss = criterion(outputs, targets)
                 val_loss += loss.item() * inputs.size(0)
-                preds = (outputs >= 0.5).float()
+                probs = torch.sigmoid(outputs)
+                preds = (probs >= 0.5).float()
                 val_correct += (preds == targets).sum().item()
                 val_total += inputs.size(0)
                 
@@ -140,7 +145,8 @@ def main():
     with torch.no_grad():
         outputs = model(X_test)
         test_loss = criterion(outputs, y_test).item()
-        predictions = (outputs >= 0.5).float()
+        probs = torch.sigmoid(outputs)
+        predictions = (probs >= 0.5).float()
         
         # Calculate metrics
         TP = ((predictions == 1) & (y_test == 1)).sum().item()
@@ -183,35 +189,56 @@ def main():
     with open("outputs/model_info.json", "w") as f:
         json.dump(model_info, f, indent=2)
 
-    # Step 8 - Pick 10 test samples and generate outputs/test_samples.json
+    # Step 8 - Pick a mix of 10 test samples (5 positive, 5 negative predictions)
     print("\n+" + "-" * 46 + "+")
-    print("| Test Sample Details                          |")
+    print("| Test Sample Details (Mixed Predictions)       |")
     print("+" + "-" * 46 + "+")
     print("| Idx | Prob   | Pred | True | Raw Feature 0   |")
     print("+" + "-" * 46 + "+")
     
     test_samples_json = {"samples": []}
+    pos_samples = []
+    neg_samples = []
     
-    # We need X_test_raw. We can extract it from the npz or the dataset if we had raw.
-    # Wait, we don't have X_test_raw easily accessible because train.npz only has X_test.
-    # We will just print the scaled feature 0.
-    for i in range(10):
+    # Iterate through all test samples to find a mix
+    for i in range(len(X_test)):
         feature_scaled = X_test[i].unsqueeze(0)
-        true_label     = int(y_test[i].item())
-        
-        prob = model(feature_scaled).item()
+        outputs = model(feature_scaled)
+        prob = torch.sigmoid(outputs).item()
         pred = 1 if prob >= 0.5 else 0
+        true_label = int(y_test[i].item())
         
-        print(f"| {i:3d} | {prob:.4f} |  {pred}   |  {true_label}   | {feature_scaled[0][0]:.4f}          |")
-        
-        test_samples_json["samples"].append({
-            "features_raw": [], # not available in this script
+        sample_data = {
+            "idx": i,
             "features_scaled": feature_scaled[0].tolist(),
             "python_probability": prob,
             "python_prediction": pred,
             "true_label": true_label
+        }
+        
+        if pred == 1 and len(pos_samples) < 5:
+            pos_samples.append(sample_data)
+        elif pred == 0 and len(neg_samples) < 5:
+            neg_samples.append(sample_data)
+            
+        if len(pos_samples) == 5 and len(neg_samples) == 5:
+            break
+            
+    # Combine and sort by original index for consistency
+    selected_samples = sorted(pos_samples + neg_samples, key=lambda x: x["idx"])
+    
+    for i, s in enumerate(selected_samples):
+        print(f"| {s['idx']:3d} | {s['python_probability']:.4f} |  {s['python_prediction']}   |  {s['true_label']}   | {s['features_scaled'][0]:.4f}          |")
+        
+        test_samples_json["samples"].append({
+            "features_raw": [], 
+            "features_scaled": s["features_scaled"],
+            "python_probability": s["python_probability"],
+            "python_prediction": s["python_prediction"],
+            "true_label": s["true_label"]
         })
     print("+" + "-" * 46 + "+")
+
 
     with open("outputs/test_samples.json", "w") as f:
         json.dump(test_samples_json, f, indent=2)

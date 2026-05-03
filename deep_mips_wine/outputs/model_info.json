@@ -20,8 +20,8 @@
       "activation": "sigmoid"
     }
   ],
-  "test_accuracy": 88.29,
-  "f1_score": 0.4545,
+  "test_accuracy": 79.02,
+  "f1_score": 0.4819,
   "total_params": 929,
   "training_seed": 42,
   "epochs_trained": 49
