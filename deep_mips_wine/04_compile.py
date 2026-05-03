@@ -68,18 +68,19 @@ def main():
 
         def emit_main(self):
             self.emit("main:")
-            self.emit("    subu  $sp, $sp, 32")
-            self.emit("    sw    $ra, 28($sp)")
-            self.emit("    sw    $fp, 24($sp)")
-            self.emit("    addiu $fp, $sp, 32")
+            self.emit("    subu  $sp, $sp, 36")
+            self.emit("    sw    $ra, 32($sp)")
+            self.emit("    sw    $fp, 28($sp)")
+            self.emit("    sw    $s7, 24($sp)")
+            self.emit("    addiu $fp, $sp, 36")
             self.emit_blank()
             
-            self.emit("    li    $t9, 0")
+            self.emit("    li    $s7, 0")
             self.emit("test_loop:")
-            self.emit("    bge   $t9, 10, test_done")
+            self.emit("    bge   $s7, 10, test_done")
             
             self.emit("    la    $t0, test_ptrs")
-            self.emit("    sll   $t1, $t9, 2")
+            self.emit("    sll   $t1, $s7, 2")
             self.emit("    add   $t0, $t0, $t1")
             self.emit("    lw    $t2, 0($t0)")
             
@@ -113,13 +114,15 @@ def main():
                 
             self.emit("    move  $a0, $s0")
             self.emit("    jal   print_single_result")
-            self.emit("    addi  $t9, $t9, 1")
+            self.emit("    addi  $s7, $s7, 1")
             self.emit("    j     test_loop")
             
             self.emit("test_done:")
-            self.emit("    lw    $ra, 28($sp)")
-            self.emit("    lw    $fp, 24($sp)")
-            self.emit("    addiu $sp, $sp, 32")
+            self.emit("    lw    $ra, 32($sp)")
+            self.emit("    lw    $fp, 28($sp)")
+            self.emit("    lw    $s7, 24($sp)")
+            self.emit("    addiu $sp, $sp, 36")
+
             self.emit("    li    $v0, 10")
             self.emit("    syscall")
             self.emit_blank()
