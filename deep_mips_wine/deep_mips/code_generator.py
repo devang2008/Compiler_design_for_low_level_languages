@@ -161,10 +161,6 @@ class CodeGenerator:
         self.emit(f"    add   $t0, $t9, $t0")
         
         if self.use_fpu:
-            self.emit(f"{nid}_fpu_outer:")
-            self.emit(f"    bge   $s2, {out_sz}, {nid}_fpu_oend")
-            self.emit(f"    sll   $t0, $s2, 2")
-            self.emit(f"    add   $t0, $t9, $t0")
             self.emit(f"    lwc1  $f0, 0($t0)")
             self.emit(f"    li    $s3, 0")
             self.emit(f"{nid}_fpu_inner:")
@@ -223,12 +219,9 @@ class CodeGenerator:
             self.emit(f"    sw    $t0, 0($t1)")
             
         self.emit(f"    addi  $s2, $s2, 1")
-        if self.use_fpu:
-            self.emit(f"    j     {nid}_fpu_outer")
-            self.emit(f"{nid}_fpu_oend:")
-        else:
-            self.emit(f"    j     {nid}_oloop")
-            self.emit(f"{nid}_oend:")
+        self.emit(f"    j     {nid}_oloop")
+        self.emit(f"{nid}_oend:")
+
         self.emit_blank()
 
     def _emit_matmul_unrolled(self, node: GraphNode, relu: bool):
